@@ -25,22 +25,66 @@ const sendOTPEmail = async (email, otp) => {
   await transporter.sendMail(mailOptions);
 };
 
-// Register API
+// Register API (Step 1)
 router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { email } = req.body;
+  
+  // Check if user already exists in the database
   const existingUser = await User.findOne({ email });
   if (existingUser) return res.status(400).json({ msg: 'User already exists' });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate OTP
+  // Generate OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpiry = new Date();
   otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP expiry time: 10 minutes
 
-  const user = new User({ name, email, password, otp, otpExpiry });
+  // Save the OTP in the database temporarily
+  const user = new User({ email, otp, otpExpiry });
   await sendOTPEmail(email, otp);
 
   await user.save();
-  res.status(200).json({ msg: 'OTP sent to your email' });
+  res.status(200).json({ msg: 'OTP sent to your email, please verify to continue' });
 });
+
+// Verify OTP API (Step 2)
+router.post('/reg-verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  
+  const user = await User.findOne({ email });
+  if (!user) return res.status(400).json({ msg: 'User not found' });
+
+  // Check if OTP matches and is still valid
+  if (user.otp !== otp || new Date() > user.otpExpiry) {
+    return res.status(400).json({ msg: 'Invalid or expired OTP' });
+  }
+
+  // Clear OTP and OTP Expiry once OTP is verified
+  user.otp = null;
+  user.otpExpiry = null;
+  await user.save();
+  
+  res.status(200).json({ msg: 'OTP verified successfully. Please enter your username and password to complete registration.' });
+});
+
+// Register with Username and Password (Step 3)
+router.post('/complete-registration', async (req, res) => {
+  const { email, name, password } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(400).json({ msg: 'User not found' });
+
+  // Encrypt the password before saving it
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  // Save the username and hashed password
+  user.name = name;
+  user.password = hashedPassword;
+
+  await user.save();
+  res.status(200).json({ msg: 'Registration complete! You can now log in.' });
+});
+
 
 // Login API
 router.post('/login', async (req, res) => {
