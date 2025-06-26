@@ -28,8 +28,6 @@ const sendOTPEmail = async (email, otp) => {
 // Register API (Step 1)
 router.post('/register', async (req, res) => {
   const { email } = req.body;
-  const { password } = "00000000";
-  const { name } = "dummy";
   // Check if user already exists in the database
   const existingUser = await User.findOne({ email });
   if (existingUser) return res.status(400).json({ msg: 'User already exists' });
@@ -40,7 +38,7 @@ router.post('/register', async (req, res) => {
   otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP expiry time: 10 minutes
 
   // Save the OTP in the database temporarily
-  const user = new User({ email, password, name, otp, otpExpiry });
+  const user = new User({ email, otp, otpExpiry });
   await sendOTPEmail(email, otp);
 
   await user.save();
