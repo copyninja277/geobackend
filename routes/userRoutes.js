@@ -107,8 +107,6 @@ router.post('/login', async (req, res) => {
 
   // Hash the entered password (without salt) to compare with the stored hash
   const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-  console.log(hashedPassword);
-  console.log(user.password);
   // Compare entered password's hash with the stored hash
   if (user.password !== hashedPassword) {
     return res.status(400).json({ msg: 'Invalid credentials' });
@@ -175,9 +173,7 @@ router.post('/reset-password', async (req, res) => {
   const user = await User.findOne({ email });
   if (!user) return res.status(400).json({ msg: 'User not found' });
 
-  // Hash the new password before saving it
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
 
   // Update the password and save the user
   user.password = hashedPassword;  // Save the new hashed password
