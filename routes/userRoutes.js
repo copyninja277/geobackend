@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
+let otpStore = {};
 
 // Send OTP Email
 const sendOTPEmail = async (email, otp) => {
@@ -28,7 +29,8 @@ const sendOTPEmail = async (email, otp) => {
 // Register API (Step 1)
 router.post('/register', async (req, res) => {
   const { email } = req.body;
-  // Check if user already exists in the database
+
+  // Check if user already exists in the database (optional)
   const existingUser = await User.findOne({ email });
   if (existingUser) return res.status(400).json({ msg: 'User already exists' });
 
@@ -37,50 +39,58 @@ router.post('/register', async (req, res) => {
   const otpExpiry = new Date();
   otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP expiry time: 10 minutes
 
-  // Save the OTP in the database temporarily
-  const user = new User({ email, otp, otpExpiry });
+  // Store OTP in memory (key: email, value: {otp, otpExpiry})
+  otpStore[email] = { otp, otpExpiry };
+
+  // Send OTP email to user
   await sendOTPEmail(email, otp);
 
-  await user.save();
   res.status(200).json({ msg: 'OTP sent to your email, please verify to continue' });
 });
 
-// Verify OTP API (Step 2)
 router.post('/reg-verify-otp', async (req, res) => {
   const { email, otp } = req.body;
-  
-  const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ msg: 'User not found' });
 
-  // Check if OTP matches and is still valid
-  if (user.otp !== otp || new Date() > user.otpExpiry) {
-    return res.status(400).json({ msg: 'Invalid or expired OTP' });
+  // Check if OTP exists in memory
+  const storedOtpData = otpStore[email];
+  if (!storedOtpData) {
+    return res.status(400).json({ msg: 'OTP not found for this email' });
   }
 
-  // Clear OTP and OTP Expiry once OTP is verified
-  user.otp = null;
-  user.otpExpiry = null;
-  await user.save();
-  
-  res.status(200).json({ msg: 'OTP verified successfully. Please enter your username and password to complete registration.' });
+  // Check if the OTP is expired
+  if (new Date() > storedOtpData.otpExpiry) {
+    delete otpStore[email]; // Remove expired OTP from memory
+    return res.status(400).json({ msg: 'OTP has expired' });
+  }
+
+  // Compare the OTPs
+  if (storedOtpData.otp !== otp) {
+    return res.status(400).json({ msg: 'Invalid OTP' });
+  }
+
+  // OTP is valid, proceed to registration step
+  delete otpStore[email]; // Remove OTP from memory after successful verification
+
+  res.status(200).json({
+    msg: 'OTP verified successfully. Please enter your username and password to complete registration.',
+  });
 });
 
 // Register with Username and Password (Step 3)
 router.post('/complete-registration', async (req, res) => {
   const { email, name, password } = req.body;
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ msg: 'User not found' });
-
   // Encrypt the password before saving it
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  // Save the username and hashed password
-  user.name = name;
-  user.password = hashedPassword;
+  const user1 = new User({
+    email: email,
+    name: name,
+    password: hashedPassword, // Hash password before saving
+  });
 
-  await user.save();
+  await user1.save();
   res.status(200).json({ msg: 'Registration complete! You can now log in.' });
 });
 
@@ -88,14 +98,23 @@ router.post('/complete-registration', async (req, res) => {
 // Login API
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+
+  // Check if the email exists in the database
   const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ msg: 'User not found' });
+  if (!user) {
+    return res.status(400).json({ msg: 'User not found' });
+  }
 
+  // Compare entered password with the stored hash
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.status(400).json({ msg: 'Invalid credentials' });
+  console.log('Password comparison result:', isMatch); 
+  if (!isMatch) {
+    return res.status(400).json({ msg: 'Invalid credentials' });
+  }
 
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  res.json({ token });
+  // If credentials are valid, generate a JWT token
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '100h' });
+  res.json({ token });  // Send the token back to the client
 });
 
 // Forgot Password API
