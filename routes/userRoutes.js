@@ -83,9 +83,9 @@ router.post('/complete-registration', async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  user.email: email;
-  user.name: name;
-  user.password: hashedPassword;
+  user.email= email;
+  user.name= name;
+  user.password= hashedPassword;
 
   await user.save();
   res.status(200).json({ msg: 'Registration complete! You can now log in.' });
@@ -114,39 +114,71 @@ router.post('/login', async (req, res) => {
   res.json({ token });  // Send the token back to the client
 });
 
-// Forgot Password API
+// Forgot Password API: Sends OTP to the user's email
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
+
+  // Check if user exists
   const user = await User.findOne({ email });
   if (!user) return res.status(400).json({ msg: 'User not found' });
 
+  // Generate OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpiry = new Date();
-  otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
+  otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP expiry time: 10 minutes
 
-  user.otp = otp;
-  user.otpExpiry = otpExpiry;
+  // Store OTP in memory
+  otpStore[email] = { otp, otpExpiry };
+
+  // Send OTP email
   await sendOTPEmail(email, otp);
 
-  await user.save();
   res.status(200).json({ msg: 'OTP sent to your email' });
 });
 
-// Verify OTP and Reset Password
+// Verify OTP API: Verifies OTP and allows password reset if OTP is correct
 router.post('/verify-otp', async (req, res) => {
-  const { email, otp, newPassword } = req.body;
+  const { email, otp } = req.body;
+
+  // Check if OTP exists in memory for the given email
+  const storedOtpData = otpStore[email];
+  if (!storedOtpData) {
+    return res.status(400).json({ msg: 'OTP not found for this email. Please request a new OTP.' });
+  }
+
+  // Check if OTP is expired
+  if (new Date() > storedOtpData.otpExpiry) {
+    delete otpStore[email]; // Remove expired OTP from memory
+    return res.status(400).json({ msg: 'OTP has expired. Please request a new one.' });
+  }
+
+  // Validate OTP
+  if (storedOtpData.otp !== otp) {
+    return res.status(400).json({ msg: 'Invalid OTP. Please try again.' });
+  }
+
+  // OTP is valid, proceed to password reset
+  delete otpStore[email]; // Remove OTP from memory after successful verification
+  res.status(200).json({ msg: 'OTP verified successfully. You can now reset your password.' });
+});
+
+// Reset Password API: Updates the user's password after OTP verification
+router.post('/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  // Ensure the user exists in the database
   const user = await User.findOne({ email });
   if (!user) return res.status(400).json({ msg: 'User not found' });
 
-  if (user.otp !== otp || new Date() > user.otpExpiry) {
-    return res.status(400).json({ msg: 'Invalid or expired OTP' });
-  }
+  // Hash the new password before saving it
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-  user.password = newPassword; // Hashing will be handled by the pre-save middleware
-  user.otp = null;
-  user.otpExpiry = null;
+  // Update the password and save the user
+  user.password = hashedPassword;  // Save the new hashed password
   await user.save();
-  res.status(200).json({ msg: 'Password updated successfully' });
+
+  res.status(200).json({ msg: 'Password updated successfully! You can now log in with your new password.' });
 });
 
 module.exports = router;
