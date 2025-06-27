@@ -80,7 +80,8 @@ router.post('/reg-verify-otp', async (req, res) => {
 router.post('/complete-registration', async (req, res) => {
   const { email, name, password } = req.body;
 
-  const hashedPassword = await bcrypt.hash(password);
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
 
   const user1 = new User({
     email: email,
@@ -102,7 +103,7 @@ router.post('/login', async (req, res) => {
   if (!user) {
     return res.status(400).json({ msg: 'User not found' });
   }
-
+  console.log(req.body);
   // Compare entered password with the stored hash
   const isMatch = await bcrypt.compare(password, user.password);
   console.log('Password comparison result:', isMatch); 
