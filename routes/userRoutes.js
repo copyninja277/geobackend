@@ -116,7 +116,7 @@ router.post('/login', async (req, res) => {
 
   // If credentials are valid, generate a JWT token
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '100h' });
-  res.json({ token });  // Send the token back to the client
+  res.json({ token, name: user.name, email: user.email }); // Send the token back to the client
 });
 
 // Forgot Password API: Sends OTP to the user's email
