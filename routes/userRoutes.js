@@ -83,13 +83,11 @@ router.post('/complete-registration', async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const user1 = new User({
-    email: email,
-    name: name,
-    password: hashedPassword, // Hash password before saving
-  });
+  user.email: email;
+  user.name: name;
+  user.password: hashedPassword;
 
-  await user1.save();
+  await user.save();
   res.status(200).json({ msg: 'Registration complete! You can now log in.' });
 });
 
