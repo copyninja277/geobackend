@@ -3,6 +3,7 @@ const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const router = express.Router();
 let otpStore = {};
 
@@ -80,8 +81,8 @@ router.post('/reg-verify-otp', async (req, res) => {
 router.post('/complete-registration', async (req, res) => {
   const { email, name, password } = req.body;
 
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
 
   const user = new User({
     email: email,
@@ -103,11 +104,12 @@ router.post('/login', async (req, res) => {
   if (!user) {
     return res.status(400).json({ msg: 'User not found' });
   }
-  console.log(req.body);
-  // Compare entered password with the stored hash
-  const isMatch = await bcrypt.compare(password, user.password);
-  console.log('Password comparison result:', isMatch); 
-  if (!isMatch) {
+
+  // Hash the entered password (without salt) to compare with the stored hash
+  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
+  // Compare entered password's hash with the stored hash
+  if (user.password !== hashedPassword) {
     return res.status(400).json({ msg: 'Invalid credentials' });
   }
 
