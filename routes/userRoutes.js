@@ -80,9 +80,7 @@ router.post('/reg-verify-otp', async (req, res) => {
 router.post('/complete-registration', async (req, res) => {
   const { email, name, password } = req.body;
 
-  // Encrypt the password before saving it
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  const hashedPassword = await bcrypt.hash(password);
 
   const user1 = new User({
     email: email,
