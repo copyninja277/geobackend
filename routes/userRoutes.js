@@ -107,7 +107,8 @@ router.post('/login', async (req, res) => {
 
   // Hash the entered password (without salt) to compare with the stored hash
   const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-
+  console.log(hashedPassword);
+  console.log(user.password);
   // Compare entered password's hash with the stored hash
   if (user.password !== hashedPassword) {
     return res.status(400).json({ msg: 'Invalid credentials' });
