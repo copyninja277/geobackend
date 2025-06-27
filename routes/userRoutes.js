@@ -173,7 +173,7 @@ router.post('/reset-password', async (req, res) => {
   const user = await User.findOne({ email });
   if (!user) return res.status(400).json({ msg: 'User not found' });
 
-  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+  const hashedPassword = crypto.createHash('sha256').update(newPassword).digest('hex');
 
   // Update the password and save the user
   user.password = hashedPassword;  // Save the new hashed password
