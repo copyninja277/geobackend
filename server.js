@@ -30,9 +30,10 @@ setInterval(() => {
   fetch(SELF_URL)
     .then(() => console.log('Pinged self to stay awake'))
     .catch(err => console.log('Ping failed:', err.message));
-}, 14 * 60 * 1000); // every 14 minutes
+}, 2 * 60 * 1000); // every 14 minutes
 
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
 
